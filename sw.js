@@ -1,5 +1,5 @@
 // Cache simples para o app abrir mesmo sem internet (a IA precisa de conexão).
-const CACHE = "dietaia-v1";
+const CACHE = "dietaia-v2";
 const ASSETS = ["./", "index.html", "app.js", "calc.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (e) => {
