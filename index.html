@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dieta IA</title>
+  <meta name="description" content="Diário alimentar com IA: fale o que comeu, controle calorias e receba sugestões.">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Dieta IA">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <style>
+    :root {
+      --bg: #f4f6f5; --card: #ffffff; --text: #1a1f1c; --muted: #66706a; --line: #e2e7e4;
+      --accent: #16a34a; --accent-soft: #dcfce7; --warn: #d97706; --warn-soft: #fef3c7;
+      --bad: #dc2626; --bad-soft: #fee2e2; --shadow: 0 1px 3px rgba(0,0,0,.07);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0f1311; --card: #181d1a; --text: #e8ece9; --muted: #96a19b; --line: #2a312d;
+        --accent: #22c55e; --accent-soft: #14321f; --warn: #f59e0b; --warn-soft: #3a2a0c;
+        --bad: #f87171; --bad-soft: #3b1515; --shadow: none;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+    header { padding: calc(14px + env(safe-area-inset-top)) 16px 6px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 20px; margin: 0; }
+    header .date { color: var(--muted); font-size: 14px; }
+    main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 12px 0; box-shadow: var(--shadow); }
+    .card h2 { font-size: 16px; margin: 0 0 10px; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .ring-wrap { display: flex; align-items: center; gap: 16px; }
+    .ring { width: 120px; height: 120px; flex: none; }
+    .ring text { fill: var(--text); }
+    .big { font-size: 28px; font-weight: 700; }
+    .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; text-align: center; }
+    .macros div { background: var(--bg); border-radius: 10px; padding: 6px; font-size: 13px; }
+    .macros b { display: block; font-size: 15px; }
+    textarea, input, select { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+      border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    textarea { min-height: 70px; resize: vertical; }
+    label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+    .row { display: flex; gap: 8px; margin-top: 10px; }
+    .row > * { flex: 1; }
+    button { font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 12px 14px; cursor: pointer;
+      background: var(--accent); color: #fff; }
+    button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+    button.mic { flex: 0 0 56px; font-size: 22px; padding: 10px; }
+    button.mic.on { background: var(--bad); animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: .6; } }
+    button:disabled { opacity: .5; }
+    .meal { margin-top: 12px; }
+    .meal h3 { font-size: 14px; color: var(--muted); margin: 0 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+    .item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+    .item .name { flex: 1; min-width: 0; }
+    .item .name small { display: block; color: var(--muted); }
+    .item .kcal { font-weight: 600; white-space: nowrap; }
+    .del { background: none; color: var(--muted); padding: 4px 8px; font-size: 18px; }
+    .banner { border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+    .banner.warn { background: var(--warn-soft); color: var(--warn); }
+    .banner.bad { background: var(--bad-soft); color: var(--bad); }
+    .banner.ok { background: var(--accent-soft); color: var(--accent); }
+    .ai { white-space: pre-wrap; font-size: 15px; }
+    .ai strong { color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 4px; border-top: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 500; border-top: 0; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+    .bar i { display: block; height: 100%; background: var(--accent); }
+    nav { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
+      display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+    nav button { flex: 1; background: none; color: var(--muted); border-radius: 0; padding: 10px 0 12px; font-size: 12px; font-weight: 500; }
+    nav button span { display: block; font-size: 20px; }
+    nav button.active { color: var(--accent); }
+    .view { display: none; } .view.active { display: block; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent;
+      border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .preview { margin-top: 10px; }
+    .preview img { max-width: 100%; max-height: 180px; border-radius: 12px; }
+    .toast { position: fixed; left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); background: var(--text); color: var(--bg);
+      padding: 12px 14px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; max-width: 608px; margin: 0 auto; }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🥗 Dieta IA</h1>
+    <div class="date" id="todayLabel"></div>
+  </header>
+
+  <main>
+    <!-- HOJE -->
+    <section class="view active" id="view-hoje">
+      <div class="card" id="setupHint" hidden>
+        <h2>Bem-vindo! 👋</h2>
+        <p class="muted">Antes de começar, preencha seu perfil e sua chave da IA na aba <b>Config</b>.</p>
+        <button data-goto="config">Ir para Config</button>
+      </div>
+
+      <div class="card">
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="12"/>
+            <circle id="ringArc" cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="12"
+              stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+            <text x="60" y="58" text-anchor="middle" font-size="22" font-weight="700" id="ringPct">0%</text>
+            <text x="60" y="78" text-anchor="middle" font-size="11" fill="var(--muted)">da meta</text>
+          </svg>
+          <div>
+            <div class="muted">Restam hoje</div>
+            <div class="big" id="remaining">—</div>
+            <div class="muted" id="consumedLine">—</div>
+          </div>
+        </div>
+        <div class="macros">
+          <div><b id="mP">0 g</b>Proteína</div>
+          <div><b id="mC">0 g</b>Carbo</div>
+          <div><b id="mF">0 g</b>Gordura</div>
+        </div>
+        <div id="todayBanner"></div>
+      </div>
+
+      <div class="card">
+        <h2>O que você comeu?</h2>
+        <textarea id="foodInput" placeholder="Ex.: no almoço comi 2 colheres de arroz, uma concha de feijão, um bife grelhado e salada. Bebi uma lata de Coca."></textarea>
+        <div class="preview" id="photoPreview" hidden></div>
+        <div class="row">
+          <button class="mic" id="micBtn" title="Falar" aria-label="Falar">🎤</button>
+          <button class="secondary" id="photoBtn" style="flex:0 0 56px;font-size:22px;padding:10px" title="Foto do prato" aria-label="Foto do prato">📷</button>
+          <button id="logBtn">Registrar</button>
+        </div>
+        <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+        <p class="muted" style="margin:8px 0 0">Toque no 🎤 e fale, ou tire uma foto do prato. A IA estima as calorias.</p>
+      </div>
+
+      <div class="card">
+        <h2>Refeições de hoje</h2>
+        <div id="mealsList"><p class="muted">Nada registrado ainda.</p></div>
+      </div>
+
+      <div class="card">
+        <h2>Sugestões da IA</h2>
+        <div class="row" style="margin-top:0">
+          <button class="secondary" data-suggest="proxima">🍽️ Próxima refeição</button>
+          <button class="secondary" data-suggest="analise">📊 Analisar meu dia</button>
+        </div>
+        <div class="row">
+          <input id="askInput" placeholder="Pergunte algo (ex.: posso comer pizza hoje?)">
+          <button style="flex:0 0 auto" id="askBtn">Enviar</button>
+        </div>
+        <div class="ai" id="aiOut" style="margin-top:12px"></div>
+      </div>
+    </section>
+
+    <!-- PLANO -->
+    <section class="view" id="view-plano">
+      <div class="card">
+        <h2>Limite de calorias – próximos 7 dias</h2>
+        <p class="muted" id="planExplain"></p>
+        <table id="planTable"></table>
+      </div>
+      <div class="card">
+        <h2>Peso</h2>
+        <div class="row" style="margin-top:0">
+          <input id="weightInput" type="text" inputmode="decimal" placeholder="Peso de hoje (kg)">
+          <button style="flex:0 0 auto" id="weightBtn">Salvar</button>
+        </div>
+        <div id="weightInfo" class="muted" style="margin-top:10px"></div>
+        <svg id="weightChart" viewBox="0 0 320 120" style="width:100%;margin-top:8px" hidden></svg>
+      </div>
+    </section>
+
+    <!-- HISTÓRICO -->
+    <section class="view" id="view-historico">
+      <div class="card">
+        <h2>Últimos dias</h2>
+        <table id="histTable"></table>
+      </div>
+      <div class="card">
+        <h2>Planilha</h2>
+        <p class="muted">Baixe tudo em Excel (abre no Google Planilhas também) ou sincronize automaticamente com uma planilha do Google (veja Config).</p>
+        <div class="row">
+          <button id="xlsxBtn">⬇️ Baixar Excel</button>
+          <button class="secondary" id="csvBtn">CSV</button>
+        </div>
+        <div class="row">
+          <button class="secondary" id="syncAllBtn">☁️ Enviar tudo p/ Google Planilhas</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONFIG -->
+    <section class="view" id="view-config">
+      <div class="card">
+        <h2>Seu perfil</h2>
+        <div class="row" style="margin-top:0">
+          <div><label for="pSex">Sexo</label>
+            <select id="pSex"><option value="m">Masculino</option><option value="f">Feminino</option></select></div>
+          <div><label for="pAge">Idade</label><input id="pAge" type="number" inputmode="numeric"></div>
+        </div>
+        <div class="row" style="margin-top:0">
+          <div><label for="pHeight">Altura (cm)</label><input id="pHeight" type="number" inputmode="numeric"></div>
+          <div><label for="pWeight">Peso atual (kg)</label><input id="pWeight" type="text" inputmode="decimal"></div>
+        </div>
+        <div class="row" style="margin-top:0">
+          <div><label for="pGoal">Peso meta (kg)</label><input id="pGoal" type="text" inputmode="decimal"></div>
+          <div><label for="pRate">Ritmo</label>
+            <select id="pRate">
+              <option value="0.25">Leve (−0,25 kg/sem)</option>
+              <option value="0.5" selected>Moderado (−0,5 kg/sem)</option>
+              <option value="0.75">Forte (−0,75 kg/sem)</option>
+              <option value="1">Intenso (−1 kg/sem)</option>
+            </select></div>
+        </div>
+        <label for="pAct">Nível de atividade</label>
+        <select id="pAct">
+          <option value="1.2">Sedentário (pouco ou nenhum exercício)</option>
+          <option value="1.375">Leve (1–3x por semana)</option>
+          <option value="1.55">Moderado (3–5x por semana)</option>
+          <option value="1.725">Alto (6–7x por semana)</option>
+        </select>
+        <label for="pPrefs">Preferências / restrições (opcional)</label>
+        <input id="pPrefs" placeholder="Ex.: não como carne vermelha, intolerante a lactose">
+        <label for="pManual">Meta diária manual (kcal, opcional – substitui o cálculo)</label>
+        <input id="pManual" type="number" inputmode="numeric" placeholder="Deixe vazio para calcular automaticamente">
+        <div class="banner ok" id="calcInfo"></div>
+      </div>
+
+      <div class="card">
+        <h2>Inteligência artificial</h2>
+        <label for="apiKey">Chave da API do Claude (Anthropic)</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+        <p class="muted">Crie em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Fica salva só neste celular.</p>
+      </div>
+
+      <div class="card">
+        <h2>Google Planilhas (opcional)</h2>
+        <label for="sheetUrl">URL do Apps Script (Web App)</label>
+        <input id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        <p class="muted">Cada refeição registrada vira uma linha na sua planilha automaticamente. Veja o passo a passo no README do projeto.</p>
+      </div>
+
+      <div class="row"><button id="saveCfg">Salvar configurações</button></div>
+      <div class="row"><button class="secondary" id="backupBtn">Backup (JSON)</button>
+        <button class="secondary" id="restoreBtn">Restaurar</button></div>
+      <input type="file" id="restoreInput" accept="application/json" hidden>
+      <p class="muted" style="text-align:center;margin:20px 0">As estimativas da IA são aproximadas. Para dietas muito restritivas ou condições de saúde, procure um nutricionista.</p>
+    </section>
+  </main>
+
+  <nav>
+    <button class="active" data-goto="hoje"><span>🍽️</span>Hoje</button>
+    <button data-goto="plano"><span>📅</span>Plano</button>
+    <button data-goto="historico"><span>📈</span>Histórico</button>
+    <button data-goto="config"><span>⚙️</span>Config</button>
+  </nav>
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

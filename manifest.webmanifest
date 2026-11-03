@@ -1,0 +1,14 @@
+{
+  "name": "Dieta IA",
+  "short_name": "Dieta IA",
+  "description": "Diário alimentar com IA: fale o que comeu, controle calorias e receba sugestões.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f5",
+  "theme_color": "#16a34a",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
