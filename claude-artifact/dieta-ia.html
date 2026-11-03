@@ -589,7 +589,7 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
         kcal: Math.round(num(i.kcal)), protein: Math.round(num(i.proteina_g)), carbs: Math.round(num(i.carbo_g)), fat: Math.round(num(i.gordura_g)),
         said: text,
       }));
-      (state.log[t] ||= []).push(...added);
+      state.log[t] = [...(state.log[t] || []), ...added];
       saveDay(t);
       $("#foodInput").value = ""; clearPhoto(); render();
       renderAi(`Registrado: ${added.map((a) => `${a.name}, ${a.qty} (${fmt(a.kcal)} kcal)`).join("; ")}\n\n${String(data.comentario || "")}`);
@@ -750,7 +750,7 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
       const log = {}, weights = {};
       for (const d of snap.docs) {
         const v = d.data() || {};
-        if (Array.isArray(v.entries) && v.entries.length) log[d.id] = v.entries;
+        if (Array.isArray(v.entries) && v.entries.length) log[d.id] = v.entries.map((e) => ({ ...e })); // cópia: dados do banco são somente leitura
         if (typeof v.weight === "number") weights[d.id] = v.weight;
       }
       state.log = log; state.weights = weights;
