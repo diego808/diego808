@@ -38,8 +38,17 @@
   .ring { width: 116px; height: 116px; flex: none; }
   .big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; text-align: center; }
-  .macros div { background: var(--bg); border-radius: 10px; padding: 6px; font-size: 13px; color: var(--muted); }
+  .macros > div { background: var(--bg); border-radius: 10px; padding: 8px 6px; font-size: 13px; color: var(--muted); min-width: 0; }
   .macros b { display: block; font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .macros .lbl { display: block; }
+  .macros .goal { display: block; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .macros .st { display: block; font-size: 12px; font-weight: 600; margin-top: 2px; }
+  .macros .mbar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 6px 4px 0; }
+  .macros .mbar i { display: block; height: 100%; width: 0; background: var(--muted); }
+  .macros > div[data-s="ok"] .st { color: var(--accent); } .macros > div[data-s="ok"] .mbar i { background: var(--accent); }
+  .macros > div[data-s="low"] .st { color: var(--warn); } .macros > div[data-s="low"] .mbar i { background: var(--warn); }
+  .macros > div[data-s="over"] { background: var(--bad-soft); } .macros > div[data-s="over"] .st, .macros > div[data-s="over"] b { color: var(--bad); }
+  .macros > div[data-s="over"] .mbar i { background: var(--bad); }
   textarea, input, select { width: 100%; font: inherit; color: var(--text); background: var(--bg);
     border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
   textarea { min-height: 76px; resize: vertical; }
@@ -134,9 +143,9 @@
         </div>
       </div>
       <div class="macros">
-        <div><b id="mP">0 g</b>Proteína</div>
-        <div><b id="mC">0 g</b>Carbo</div>
-        <div><b id="mF">0 g</b>Gordura</div>
+        <div id="mPbox"><span class="lbl">Proteína</span><b id="mP">0 g</b><span class="goal" id="mPg"></span><div class="mbar"><i id="mPb"></i></div><span class="st" id="mPs"></span></div>
+        <div id="mCbox"><span class="lbl">Carbo</span><b id="mC">0 g</b><span class="goal" id="mCg"></span><div class="mbar"><i id="mCb"></i></div><span class="st" id="mCs"></span></div>
+        <div id="mFbox"><span class="lbl">Gordura</span><b id="mF">0 g</b><span class="goal" id="mFg"></span><div class="mbar"><i id="mFb"></i></div><span class="st" id="mFs"></span></div>
       </div>
       <div id="todayBanner"></div>
     </div>
@@ -279,6 +288,19 @@
   const sumDay = (list) => (list || []).reduce((t, e) => ({
     kcal: t.kcal + (e.kcal || 0), protein: t.protein + (e.protein || 0), carbs: t.carbs + (e.carbs || 0), fat: t.fat + (e.fat || 0),
   }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  // Metas de macros para o limite de calorias do dia.
+  // Proteína: 1,6 g/kg do peso atual (no máximo 2 g/kg do peso meta, para quem tem muito a perder) e até 35% das kcal.
+  // Gordura: 27% das kcal (mínimo 0,6 g/kg do peso meta). Carbo: o restante.
+  function macroTargets(p, kcal) {
+    if (!(kcal > 0)) return null;
+    const ref = p.goal > 0 && p.goal < p.weight ? Math.min(p.weight, p.goal * 1.25) : p.weight;
+    let protein = ref > 0 ? 1.6 * ref : (kcal * 0.25) / 4;
+    protein = Math.min(protein, (kcal * 0.35) / 4);
+    let fat = Math.max((kcal * 0.27) / 9, (p.goal || p.weight || 0) * 0.6);
+    fat = Math.min(fat, (kcal * 0.35) / 9);
+    const carbs = Math.max(0, (kcal - protein * 4 - fat * 9) / 4);
+    return { protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) };
+  }
   const weeksToGoal = (p) => { const d = p.weight - p.goal; return d > 0 ? Math.ceil(d / (p.rate || 0.5)) : 0; };
 
   // Excesso de um dia vira "dívida" paga aos poucos (≈1/3 por dia), nunca abaixo do piso. Sobras não viram bônus.
@@ -358,7 +380,22 @@
     $("#remaining").textContent = target ? (rem >= 0 ? fmt(rem) + " kcal" : "+" + fmt(-rem) + " kcal") : "—";
     $("#remaining").style.color = target && rem < 0 ? "var(--bad)" : "";
     $("#consumedLine").textContent = !state.loaded ? "Carregando…" : target ? `${fmt(tot.kcal)} de ${fmt(target)} kcal` : "Complete seu perfil";
-    $("#mP").textContent = fmt(tot.protein) + " g"; $("#mC").textContent = fmt(tot.carbs) + " g"; $("#mF").textContent = fmt(tot.fat) + " g";
+    const mt = macroTargets(P(), target);
+    const macro = (key, val, goal, isMin) => {
+      const box = $("#m" + key + "box");
+      $("#m" + key).textContent = fmt(val) + " g";
+      if (!goal) { box.removeAttribute("data-s"); $("#m" + key + "g").textContent = ""; $("#m" + key + "s").textContent = ""; $("#m" + key + "b").style.width = "0"; return; }
+      $("#m" + key + "g").textContent = `de ${fmt(goal)} g`;
+      $("#m" + key + "b").style.width = Math.min(val / goal, 1) * 100 + "%";
+      const diff = Math.round(goal - val);
+      let st, txt;
+      if (isMin) { st = diff <= 0 ? "ok" : "low"; txt = diff <= 0 ? "Meta batida ✓" : `Faltam ${fmt(diff)} g`; }
+      else { st = diff < 0 ? "over" : "ok"; txt = diff < 0 ? `Passou ${fmt(-diff)} g` : `Restam ${fmt(diff)} g`; }
+      box.dataset.s = st; $("#m" + key + "s").textContent = txt;
+    };
+    macro("P", tot.protein, mt?.protein, true);
+    macro("C", tot.carbs, mt?.carbs, false);
+    macro("F", tot.fat, mt?.fat, false);
 
     let banner = "";
     if (day?.payback > 0) banner += `<div class="banner warn">Hoje seu limite está ${fmt(day.payback)} kcal menor para compensar excessos anteriores.</div>`;
@@ -453,6 +490,7 @@
       `Data e hora agora: ${new Date().toLocaleString("pt-BR")}`,
       complete(p) ? `Perfil: ${p.sex === "f" ? "mulher" : "homem"}, ${p.age} anos, ${p.height} cm, ${p.weight} kg, meta ${p.goal || "?"} kg, gasto estimado ${fmt(tdee(p))} kcal/dia.` : "",
       p.prefs ? `Preferências e restrições: ${p.prefs}` : "",
+      target && macroTargets(p, target) ? `Metas de hoje: proteína mínima ${macroTargets(p, target).protein} g, carbo até ${macroTargets(p, target).carbs} g, gordura até ${macroTargets(p, target).fat} g.` : "",
       target ? `Limite de hoje: ${fmt(target)} kcal. Consumido: ${fmt(tot.kcal)} kcal (P ${fmt(tot.protein)} g, C ${fmt(tot.carbs)} g, G ${fmt(tot.fat)} g). Restam ${fmt(target - tot.kcal)} kcal.` : "",
       entries.length ? `Comido hoje: ${entries.map((e) => `${MEALS[e.meal]}: ${e.name} (${e.qty}, ${fmt(e.kcal)} kcal)`).join("; ")}` : "Nada registrado hoje ainda.",
       last7.length ? `Últimos dias: ${last7.join("; ")}` : "",
@@ -623,6 +661,8 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
     const parts = [];
     if (complete(p)) parts.push(`Gasto estimado: <b>${fmt(tdee(p))} kcal/dia</b>`);
     parts.push(`Sua meta: <b>${fmt(baseTarget(p))} kcal/dia</b>`);
+    const mt = macroTargets(p, baseTarget(p));
+    if (mt) parts.push(`Proteína: pelo menos <b>${mt.protein} g</b> · Carbo: até <b>${mt.carbs} g</b> · Gordura: até <b>${mt.fat} g</b>`);
     if (p.goal && p.weight > p.goal) parts.push(`Meta de peso em cerca de ${weeksToGoal(p)} semanas`);
     el.innerHTML = parts.join("<br>"); el.hidden = false;
   }
