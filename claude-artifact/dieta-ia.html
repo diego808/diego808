@@ -349,7 +349,7 @@
   let toastTimer;
   function toast(msg) {
     const t = $("#toast"); t.textContent = msg; t.classList.add("show");
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 6000);
   }
   function status(msg) { const b = $("#statusBanner"); b.textContent = msg || ""; b.hidden = !msg; }
 
@@ -526,8 +526,35 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
       case "invalid_json": return "Não entendi a resposta da IA. Toque em Registrar de novo.";
       case "refused": return "A IA não pôde responder a esse pedido.";
       case "cancelled": return "";
-      default: return "A IA não respondeu agora. Tente de novo em instantes.";
+      case "images_unavailable": return "Este app do Claude não aceita foto aqui. Remova a foto e descreva o que comeu.";
+      case "prompt_too_large": return "Texto muito longo. Registre uma refeição de cada vez.";
+      case "capability_disabled": case "capability_removed": case "not_declared":
+        return "Seu app do Claude não liberou a IA para este app. Atualize o app do Claude ou abra pelo navegador em claude.ai.";
+      default: return "A IA não respondeu agora. Toque de novo em instantes; o que você escreveu continua no campo.";
     }
+  }
+  // Guarda os últimos erros da IA (só você vê) para facilitar o diagnóstico.
+  let errLog = [];
+  function reportError(where, e) {
+    const item = { at: new Date().toISOString(), where, code: String(e?.code || "sem_codigo"),
+      message: String(e?.message || e || "").slice(0, 500), ua: navigator.userAgent.slice(0, 200) };
+    console.warn("Dieta IA:", item);
+    errLog = [item, ...errLog].slice(0, 10);
+    if (db) db.doc("config/errors").set({ items: errLog }).catch(() => {});
+    return item.code;
+  }
+  function errMsg(where, e) {
+    if (e?.code === "cancelled") return "";
+    const code = reportError(where, e);
+    return `${errText(e)} (código: ${code})`;
+  }
+  // Pede JSON usando a chamada comum (funciona em mais versões do app) e lê a resposta com tolerância.
+  async function askJson(prompt, opts) {
+    const { text } = await sample(prompt, opts);
+    const clean = String(text).replace(/```(?:json)?/gi, "");
+    const a = clean.indexOf("{"), b = clean.lastIndexOf("}");
+    try { return JSON.parse(clean.slice(a, b + 1)); }
+    catch { throw { code: "invalid_json", message: "Resposta sem JSON válido: " + String(text).slice(0, 200) }; }
   }
   function renderAi(text) {
     $("#aiOut").innerHTML = esc(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^#+\s*(.+)$/gm, "<strong>$1</strong>").replace(/^- /gm, "• ");
@@ -544,10 +571,10 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
     const btn = $("#logBtn");
     busy(btn, true, "Analisando…");
     try {
-      const opts = { cache: false };
+      const opts = { cache: false, modelTier: "quick" };
       if (photo) opts.images = [photo.blob];
       const prompt = `${FOOD_RULES}\n\n--- Situação atual ---\n${context()}\n\n--- O que comi ---\n${text || "(veja a foto do prato)"}`;
-      const data = await sample.json(prompt, opts);
+      const data = await askJson(prompt, opts);
       const itens = Array.isArray(data?.itens) ? data.itens : [];
       if (!itens.length) { renderAi(String(data?.comentario || "Não identifiquei alimentos.")); return; }
       const t = today(), now = new Date().toTimeString().slice(0, 5);
@@ -563,7 +590,7 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
       renderAi(`Registrado: ${added.map((a) => `${a.name}, ${a.qty} (${fmt(a.kcal)} kcal)`).join("; ")}\n\n${String(data.comentario || "")}`);
       toast(`+${fmt(sumDay(added).kcal)} kcal registradas`);
     } catch (e) {
-      const m = errText(e); if (m) toast(m);
+      const m = errMsg("registrar", e); if (m) { toast(m); renderAi(m); }
     } finally { busy(btn, false); }
   }
 
@@ -578,8 +605,9 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
       const { text } = await sample(prompt, { cache: false, signal: coachCtl.signal, onText: ({ text }) => renderAi(text) });
       renderAi(text);
     } catch (e) {
-      if (e?.text) renderAi(e.text); else $("#aiOut").textContent = "";
-      const m = errText(e); if (m) toast(m);
+      const m = errMsg("sugestao", e);
+      if (e?.text) renderAi(e.text + (m ? "\n\n" + m : "")); else renderAi(m);
+      if (m) toast(m);
     } finally { busy(btn, false); }
   }
 
