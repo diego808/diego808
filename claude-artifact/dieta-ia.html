@@ -1,0 +1,684 @@
+<title>Dieta IA</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: app de uma coluna, cartões empilhados, barra de abas fixa embaixo. */
+  :root {
+    --bg: #f3f6f4; --card: #ffffff; --text: #18201b; --muted: #5f6b64; --line: #dfe6e1;
+    --accent: #15803d; --accent-soft: #dcfce7; --on-accent: #ffffff;
+    --warn: #b45309; --warn-soft: #fef3c7; --bad: #c62828; --bad-soft: #fde4e4;
+    --ink: #18201b; --ink-text: #f3f6f4;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1310; --card: #171e1a; --text: #e6ece8; --muted: #95a39b; --line: #29322d;
+      --accent: #22c55e; --accent-soft: #123321; --on-accent: #06210f;
+      --warn: #f2a93b; --warn-soft: #3a2a0c; --bad: #f87171; --bad-soft: #3b1717;
+      --ink: #e6ece8; --ink-text: #0e1310; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1310; --card: #171e1a; --text: #e6ece8; --muted: #95a39b; --line: #29322d;
+    --accent: #22c55e; --accent-soft: #123321; --on-accent: #06210f;
+    --warn: #f2a93b; --warn-soft: #3a2a0c; --bad: #f87171; --bad-soft: #3b1717;
+    --ink: #e6ece8; --ink-text: #0e1310; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.45 var(--font);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 0 calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .wrap { max-width: 620px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-block: 14px 4px; flex-wrap: wrap; }
+  header h1 { font-size: 21px; margin: 0; letter-spacing: -.01em; }
+  header .date { color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 12px 0; }
+  .card h2 { font-size: 16px; margin: 0 0 10px; text-wrap: balance; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .ring-wrap { display: flex; align-items: center; gap: 16px; }
+  .ring { width: 116px; height: 116px; flex: none; }
+  .big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; text-align: center; }
+  .macros div { background: var(--bg); border-radius: 10px; padding: 6px; font-size: 13px; color: var(--muted); }
+  .macros b { display: block; font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+  textarea, input, select { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  textarea { min-height: 76px; resize: vertical; }
+  textarea:focus, input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  .row { display: flex; gap: 8px; margin-top: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 12px 14px; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); }
+  button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+  button.icon { flex: 0 0 56px; font-size: 20px; padding: 10px; }
+  button:disabled { opacity: .55; cursor: default; }
+  .meal { margin-top: 12px; }
+  .meal h3 { font-size: 13px; color: var(--muted); margin: 0 0 2px; text-transform: uppercase; letter-spacing: .05em; }
+  .item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .item .name { flex: 1; min-width: 0; }
+  .item .name small { display: block; color: var(--muted); }
+  .item .kcal { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .del { background: none; color: var(--muted); padding: 4px 8px; font-size: 14px; font-weight: 500; border: 1px solid transparent; }
+  .del.armed { color: var(--bad); border-color: var(--bad); }
+  .banner { border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+  .banner.warn { background: var(--warn-soft); color: var(--warn); }
+  .banner.bad { background: var(--bad-soft); color: var(--bad); }
+  .banner.ok { background: var(--accent-soft); color: var(--accent); }
+  .ai { white-space: pre-wrap; font-size: 15px; margin-top: 12px; }
+  .ai strong { color: var(--accent); }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 4px; border-top: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; border-top: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .ref { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .ref span:nth-child(3n+2), .ref span:nth-child(3n) { text-align: right; }
+  .ref .h { color: var(--muted); }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); display: flex;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); z-index: 5; }
+  nav button { flex: 1; background: none; color: var(--muted); border-radius: 0; padding: 10px 0 12px; font-size: 12px; font-weight: 500; }
+  nav button span { display: block; font-size: 20px; }
+  nav button.active { color: var(--accent); }
+  .view[hidden] { display: none !important; }
+  .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+  .preview img { max-width: 100%; max-height: 180px; border-radius: 12px; margin-top: 10px; display: block; }
+  .toast { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--ink-text);
+    padding: 12px 14px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10;
+    max-width: 588px; margin: 0 auto; }
+  .toast.show { opacity: 1; }
+  .ring-track { stroke: var(--line); }
+  .ring-text { fill: var(--text); }
+  .ring-sub { fill: var(--muted); }
+  svg .wline { stroke: var(--text); }
+  svg .wdot { fill: var(--text); }
+  svg .wgoal { stroke: var(--accent); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Dieta IA</h1>
+    <div class="date" id="todayLabel"></div>
+  </header>
+
+  <div class="banner warn" id="statusBanner" hidden></div>
+
+  <!-- HOJE -->
+  <section class="view" id="view-hoje">
+    <div class="card" id="setupHint" hidden>
+      <h2>Primeiro passo</h2>
+      <p class="muted">Preencha seu perfil na aba <b>Perfil</b> para eu calcular seu limite de calorias.</p>
+      <button data-goto="perfil" type="button">Preencher perfil</button>
+    </div>
+
+    <div class="card">
+      <div class="ring-wrap">
+        <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="12"/>
+          <circle id="ringArc" cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="12"
+            stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+          <text class="ring-text" x="60" y="58" text-anchor="middle" font-size="22" font-weight="700" id="ringPct">—</text>
+          <text class="ring-sub" x="60" y="78" text-anchor="middle" font-size="11">da meta</text>
+        </svg>
+        <div style="min-width:0">
+          <div class="muted">Restam hoje</div>
+          <div class="big" id="remaining">—</div>
+          <div class="muted" id="consumedLine">Carregando…</div>
+        </div>
+      </div>
+      <div class="macros">
+        <div><b id="mP">0 g</b>Proteína</div>
+        <div><b id="mC">0 g</b>Carbo</div>
+        <div><b id="mF">0 g</b>Gordura</div>
+      </div>
+      <div id="todayBanner"></div>
+    </div>
+
+    <div class="card">
+      <h2>O que você comeu?</h2>
+      <textarea id="foodInput" placeholder="Ex.: no almoço comi 1 concha de arroz, 1 concha de feijão, um bife grelhado e salada."></textarea>
+      <div class="preview" id="photoPreview" hidden></div>
+      <div class="row">
+        <button class="secondary icon" id="photoBtn" type="button" title="Foto do prato" aria-label="Foto do prato" hidden>📷</button>
+        <button id="logBtn" type="button">Registrar</button>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+      <p class="muted" style="margin:8px 0 0">Para falar, toque no 🎤 do teclado do celular e dite o que comeu.</p>
+    </div>
+
+    <div class="card">
+      <h2>Refeições de hoje</h2>
+      <div id="mealsList"><p class="muted">Nada registrado ainda. Escreva acima o que comeu e toque em Registrar.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Sugestões</h2>
+      <div class="row" style="margin-top:0">
+        <button class="secondary" data-suggest="proxima" type="button">Próxima refeição</button>
+        <button class="secondary" data-suggest="analise" type="button">Analisar meu dia</button>
+      </div>
+      <div class="row">
+        <input id="askInput" placeholder="Pergunte algo (ex.: posso comer pizza hoje?)">
+        <button style="flex:0 0 auto" id="askBtn" type="button">Enviar</button>
+      </div>
+      <div class="ai" id="aiOut"></div>
+    </div>
+  </section>
+
+  <!-- PLANO -->
+  <section class="view" id="view-plano" hidden>
+    <div class="card">
+      <h2>Limite de calorias nos próximos 7 dias</h2>
+      <p class="muted" id="planExplain"></p>
+      <div class="table-scroll"><table id="planTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>Peso</h2>
+      <div class="row" style="margin-top:0">
+        <input id="weightInput" type="text" inputmode="decimal" placeholder="Peso de hoje (kg)">
+        <button style="flex:0 0 auto" id="weightBtn" type="button">Salvar</button>
+      </div>
+      <div id="weightInfo" class="muted" style="margin-top:10px"></div>
+      <svg id="weightChart" viewBox="0 0 320 120" style="width:100%;margin-top:8px" hidden></svg>
+    </div>
+    <div class="card">
+      <h2>Medidas de referência</h2>
+      <div class="ref">
+        <span class="h">Alimento</span><span class="h">Porção</span><span class="h">kcal</span>
+        <span>Arroz branco</span><span>1 concha (100 g)</span><span>128</span>
+        <span>Arroz integral</span><span>1 concha (100 g)</span><span>124</span>
+        <span>Feijão carioca</span><span>1 concha (100 g)</span><span>76</span>
+        <span>Feijão preto</span><span>1 concha (100 g)</span><span>77</span>
+      </div>
+      <p class="muted" style="margin:8px 0 0">1 colher de servir ≈ 45 g ≈ ½ concha.</p>
+    </div>
+  </section>
+
+  <!-- HISTÓRICO -->
+  <section class="view" id="view-historico" hidden>
+    <div class="card">
+      <h2>Últimos dias</h2>
+      <div class="table-scroll"><table id="histTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>Planilha</h2>
+      <p class="muted">Baixe tudo em Excel (abre no Google Planilhas também). Para mandar direto ao Google Planilhas, peça ao Claude no chat.</p>
+      <div class="row">
+        <button id="xlsxBtn" type="button">Baixar Excel</button>
+        <button class="secondary" id="csvBtn" type="button">Baixar CSV</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PERFIL -->
+  <section class="view" id="view-perfil" hidden>
+    <form class="card" id="profileForm">
+      <h2>Seu perfil</h2>
+      <div class="grid2">
+        <div><label for="pSex">Sexo</label>
+          <select id="pSex"><option value="m">Masculino</option><option value="f">Feminino</option></select></div>
+        <div><label for="pAge">Idade</label><input id="pAge" type="text" inputmode="numeric"></div>
+        <div><label for="pHeight">Altura (cm)</label><input id="pHeight" type="text" inputmode="numeric"></div>
+        <div><label for="pWeight">Peso atual (kg)</label><input id="pWeight" type="text" inputmode="decimal"></div>
+        <div><label for="pGoal">Peso meta (kg)</label><input id="pGoal" type="text" inputmode="decimal"></div>
+        <div><label for="pRate">Ritmo</label>
+          <select id="pRate">
+            <option value="0.25">Leve (−0,25 kg/sem)</option>
+            <option value="0.5" selected>Moderado (−0,5 kg/sem)</option>
+            <option value="0.75">Forte (−0,75 kg/sem)</option>
+            <option value="1">Intenso (−1 kg/sem)</option>
+          </select></div>
+      </div>
+      <label for="pAct">Nível de atividade</label>
+      <select id="pAct">
+        <option value="1.2">Sedentário (pouco ou nenhum exercício)</option>
+        <option value="1.375">Leve (1–3x por semana)</option>
+        <option value="1.55">Moderado (3–5x por semana)</option>
+        <option value="1.725">Alto (6–7x por semana)</option>
+      </select>
+      <label for="pPrefs">Preferências ou restrições (opcional)</label>
+      <input id="pPrefs" placeholder="Ex.: não como carne vermelha, intolerante a lactose">
+      <label for="pManual">Meta diária manual em kcal (opcional)</label>
+      <input id="pManual" type="text" inputmode="numeric" placeholder="Vazio = calcular automaticamente">
+      <div class="banner ok" id="calcInfo" hidden></div>
+      <div class="row"><button type="submit" id="saveCfg">Salvar perfil</button></div>
+    </form>
+    <p class="muted" style="text-align:center;margin:20px 0">As estimativas são aproximadas e não substituem um nutricionista.</p>
+  </section>
+</div>
+
+<nav>
+  <button class="active" data-goto="hoje" type="button"><span>🍽️</span>Hoje</button>
+  <button data-goto="plano" type="button"><span>📅</span>Plano</button>
+  <button data-goto="historico" type="button"><span>📈</span>Histórico</button>
+  <button data-goto="perfil" type="button"><span>👤</span>Perfil</button>
+</nav>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(() => {
+  // ---------- Cálculos ----------
+  const KCAL_PER_KG = 7700;
+  const MEALS = { cafe: "Café da manhã", almoco: "Almoço", lanche: "Lanche", jantar: "Jantar", ceia: "Ceia" };
+  const dayKey = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const addDays = (key, n) => { const [y, m, d] = key.split("-").map(Number); return dayKey(new Date(y, m - 1, d + n)); };
+  const minKcal = (p) => (p.sex === "f" ? 1200 : 1500);
+  const tdee = (p) => (10 * p.weight + 6.25 * p.height - 5 * p.age + (p.sex === "f" ? -161 : 5)) * (p.activity || 1.2);
+  const complete = (p) => p.age > 0 && p.height > 0 && p.weight > 0;
+  const baseTarget = (p) => p.manualTarget > 0 ? Math.round(p.manualTarget)
+    : Math.round(Math.max(minKcal(p), tdee(p) - ((p.rate || 0.5) * KCAL_PER_KG) / 7));
+  const sumDay = (list) => (list || []).reduce((t, e) => ({
+    kcal: t.kcal + (e.kcal || 0), protein: t.protein + (e.protein || 0), carbs: t.carbs + (e.carbs || 0), fat: t.fat + (e.fat || 0),
+  }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  const weeksToGoal = (p) => { const d = p.weight - p.goal; return d > 0 ? Math.ceil(d / (p.rate || 0.5)) : 0; };
+
+  // Excesso de um dia vira "dívida" paga aos poucos (≈1/3 por dia), nunca abaixo do piso. Sobras não viram bônus.
+  function computePlan(p, log, today, ahead = 6) {
+    const base = baseTarget(p), floor = Math.min(base, minKcal(p));
+    const logged = Object.keys(log).filter((k) => log[k]?.length).sort();
+    const start = logged.length && logged[0] < today ? logged[0] : today;
+    const end = addDays(today, ahead), plan = new Map();
+    let debt = 0;
+    for (let d = start; d <= end; d = addDays(d, 1)) {
+      const payback = Math.round(Math.min(debt, base - floor, Math.max(debt / 3, 100)));
+      const target = base - payback;
+      debt -= payback;
+      const entries = log[d] || [];
+      const isLogged = entries.length > 0 && d <= today;
+      const consumed = sumDay(entries).kcal;
+      if (isLogged && consumed > target) debt += consumed - target;
+      plan.set(d, { target, base, payback, consumed, logged: isLogged, debtAfter: Math.round(debt) });
+    }
+    return plan;
+  }
+
+  // ---------- Estado ----------
+  const state = {
+    profile: { sex: "m", age: "", height: "", weight: "", goal: "", rate: "0.5", activity: "1.2", prefs: "", manualTarget: "" },
+    log: {}, weights: {}, loaded: false,
+  };
+  let db = null, sample = null, downloads = null;
+  let photo = null;
+
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const fmt = (n) => Math.round(n).toLocaleString("pt-BR");
+  const kg = (n) => Number(n).toFixed(1).replace(".", ",");
+  const today = () => dayKey();
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = (v) => parseFloat(String(v ?? "").replace(",", ".")) || 0;
+  const prettyDate = (key, opts = { weekday: "short", day: "2-digit", month: "2-digit" }) => {
+    const [y, m, d] = key.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("pt-BR", opts);
+  };
+  const P = () => { const p = state.profile; return { ...p, age: num(p.age), height: num(p.height), weight: num(p.weight), goal: num(p.goal),
+    rate: num(p.rate), activity: num(p.activity), manualTarget: num(p.manualTarget) }; };
+  const hasTarget = () => complete(P()) || P().manualTarget > 0;
+  const plan = () => hasTarget() ? computePlan(P(), state.log, today()) : null;
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
+  }
+  function status(msg) { const b = $("#statusBanner"); b.textContent = msg || ""; b.hidden = !msg; }
+
+  // ---------- Navegação ----------
+  function go(view) {
+    $$(".view").forEach((v) => (v.hidden = v.id !== "view-" + view));
+    $$("nav button").forEach((b) => b.classList.toggle("active", b.dataset.goto === view));
+    window.scrollTo(0, 0);
+    render();
+  }
+  $$("[data-goto]").forEach((b) => b.addEventListener("click", () => go(b.dataset.goto)));
+
+  // ---------- Render ----------
+  function render() {
+    $("#todayLabel").textContent = prettyDate(today(), { weekday: "long", day: "numeric", month: "long" });
+    $("#setupHint").hidden = !state.loaded || hasTarget();
+    renderToday(); renderPlan(); renderHistory();
+  }
+
+  function renderToday() {
+    const pl = plan(), entries = state.log[today()] || [], tot = sumDay(entries);
+    const day = pl?.get(today()), target = day?.target || 0;
+    const pct = target ? tot.kcal / target : 0, C = 326.7;
+    $("#ringArc").setAttribute("stroke-dashoffset", String(C - C * Math.min(pct, 1)));
+    $("#ringArc").setAttribute("stroke", pct > 1 ? "var(--bad)" : pct > 0.9 ? "var(--warn)" : "var(--accent)");
+    $("#ringPct").textContent = target ? Math.round(pct * 100) + "%" : "—";
+    const rem = target - tot.kcal;
+    $("#remaining").textContent = target ? (rem >= 0 ? fmt(rem) + " kcal" : "+" + fmt(-rem) + " kcal") : "—";
+    $("#remaining").style.color = target && rem < 0 ? "var(--bad)" : "";
+    $("#consumedLine").textContent = !state.loaded ? "Carregando…" : target ? `${fmt(tot.kcal)} de ${fmt(target)} kcal` : "Complete seu perfil";
+    $("#mP").textContent = fmt(tot.protein) + " g"; $("#mC").textContent = fmt(tot.carbs) + " g"; $("#mF").textContent = fmt(tot.fat) + " g";
+
+    let banner = "";
+    if (day?.payback > 0) banner += `<div class="banner warn">Hoje seu limite está ${fmt(day.payback)} kcal menor para compensar excessos anteriores.</div>`;
+    if (target && rem < 0) banner += `<div class="banner bad">Você passou ${fmt(-rem)} kcal. Isso será compensado nos próximos dias (amanhã: ${fmt(pl.get(addDays(today(), 1)).target)} kcal).</div>`;
+    else if (target && entries.length && rem <= target * 0.1) banner += `<div class="banner warn">Quase no limite. Se ainda for comer, prefira algo leve.</div>`;
+    $("#todayBanner").innerHTML = banner;
+
+    const list = $("#mealsList");
+    if (!entries.length) { list.innerHTML = '<p class="muted">Nada registrado ainda. Escreva acima o que comeu e toque em Registrar.</p>'; return; }
+    let html = "";
+    for (const [k, label] of Object.entries(MEALS)) {
+      const items = entries.filter((e) => e.meal === k);
+      if (!items.length) continue;
+      html += `<div class="meal"><h3>${label} · ${fmt(sumDay(items).kcal)} kcal</h3>`;
+      for (const e of items) html += `<div class="item"><div class="name">${esc(e.name)}<small>${esc(e.qty)} · P ${fmt(e.protein)}g · C ${fmt(e.carbs)}g · G ${fmt(e.fat)}g</small></div>
+        <div class="kcal">${fmt(e.kcal)}</div><button class="del" type="button" data-del="${esc(e.id)}" aria-label="Apagar ${esc(e.name)}">Apagar</button></div>`;
+      html += "</div>";
+    }
+    list.innerHTML = html;
+    list.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Confirmar?"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Apagar"; }, 3000); return; }
+      state.log[today()] = (state.log[today()] || []).filter((e) => e.id !== b.dataset.del);
+      saveDay(today()); render();
+    }));
+  }
+
+  function renderPlan() {
+    const pl = plan();
+    if (!pl) { $("#planTable").innerHTML = ""; $("#planExplain").textContent = "Preencha seu perfil para ver seus limites."; }
+    else {
+      const p = P(), base = baseTarget(p);
+      $("#planExplain").textContent = `Meta base: ${fmt(base)} kcal por dia. Se você passar do limite, o excesso é descontado aos poucos nos dias seguintes, nunca abaixo de ${fmt(Math.min(base, minKcal(p)))} kcal.`;
+      let rows = `<tr><th>Dia</th><th class="num">Limite</th><th class="num">Consumido</th></tr>`;
+      for (let i = 0; i <= 6; i++) {
+        const k = addDays(today(), i), d = pl.get(k);
+        rows += `<tr><td>${i === 0 ? "<b>Hoje</b>" : prettyDate(k)}</td><td class="num">${fmt(d.target)}${d.payback ? ` <span class="muted">(−${fmt(d.payback)})</span>` : ""}</td><td class="num">${d.logged ? fmt(d.consumed) : "—"}</td></tr>`;
+      }
+      const last = pl.get(addDays(today(), 6));
+      if (last.debtAfter > 0) rows += `<tr><td colspan="3" class="muted">Ainda restam ${fmt(last.debtAfter)} kcal a compensar depois disso.</td></tr>`;
+      $("#planTable").innerHTML = rows;
+    }
+    const p = P(), ws = Object.entries(state.weights).sort(([a], [b]) => a.localeCompare(b));
+    const cur = ws.length ? ws[ws.length - 1][1] : p.weight, info = [];
+    if (cur) info.push(`Atual: <b>${kg(cur)} kg</b>`);
+    if (p.goal) info.push(`Meta: ${kg(p.goal)} kg`);
+    if (cur && p.goal && cur > p.goal) info.push(`Faltam ${kg(cur - p.goal)} kg (cerca de ${weeksToGoal({ ...p, weight: cur })} semanas)`);
+    if (ws.length > 1) { const diff = ws[ws.length - 1][1] - ws[0][1]; info.push(`Desde ${prettyDate(ws[0][0])}: ${diff > 0 ? "+" : ""}${kg(diff)} kg`); }
+    $("#weightInfo").innerHTML = info.join(" · ") || "Registre seu peso para acompanhar a evolução.";
+    const svg = $("#weightChart");
+    if (ws.length > 1) {
+      const pts = ws.slice(-30), vals = pts.map(([, v]) => v).concat(p.goal ? [p.goal] : []);
+      const lo = Math.min(...vals) - 0.5, hi = Math.max(...vals) + 0.5;
+      const x = (i) => 10 + (i * 300) / Math.max(pts.length - 1, 1), y = (v) => 110 - ((v - lo) / (hi - lo)) * 100;
+      svg.innerHTML = (p.goal ? `<line class="wgoal" x1="10" x2="310" y1="${y(p.goal)}" y2="${y(p.goal)}" stroke-dasharray="4 4" fill="none"/>` : "") +
+        `<path class="wline" d="${pts.map(([, v], i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")}" fill="none" stroke-width="2"/>` +
+        pts.map(([, v], i) => `<circle class="wdot" cx="${x(i)}" cy="${y(v)}" r="3"/>`).join("");
+      svg.hidden = false;
+    } else svg.hidden = true;
+  }
+
+  function renderHistory() {
+    const pl = plan(), days = Object.keys(state.log).filter((k) => state.log[k]?.length).sort().reverse().slice(0, 30);
+    if (!days.length) { $("#histTable").innerHTML = '<tr><td class="muted">Seus dias registrados aparecem aqui.</td></tr>'; return; }
+    let rows = `<tr><th>Dia</th><th class="num">Consumido</th><th class="num">Limite</th></tr>`;
+    for (const k of days) {
+      const c = sumDay(state.log[k]).kcal, t = pl?.get(k)?.target, over = t && c > t;
+      rows += `<tr><td>${prettyDate(k)}<div class="bar"><i style="width:${t ? Math.min(c / t, 1) * 100 : 0}%;background:${over ? "var(--bad)" : "var(--accent)"}"></i></div></td>
+        <td class="num" style="color:${over ? "var(--bad)" : "inherit"}">${fmt(c)}</td><td class="num">${t ? fmt(t) : "—"}</td></tr>`;
+    }
+    $("#histTable").innerHTML = rows;
+  }
+
+  // ---------- Armazenamento (db do Claude) ----------
+  const writeChains = {};
+  function queueWrite(path, body) {
+    if (!db) { toast("Não foi possível salvar: abra o app pelo Claude, com sua conta."); return; }
+    writeChains[path] = (writeChains[path] || Promise.resolve()).then(() => db.doc(path).set(body)).catch((e) => {
+      toast(e?.code === "quota_exceeded" ? "Espaço de armazenamento cheio." : "Não consegui salvar agora. Tente de novo.");
+    });
+  }
+  function saveDay(d) {
+    queueWrite("days/" + d, { date: d, entries: state.log[d] || [], weight: state.weights[d] ?? null });
+  }
+  function saveProfile() { queueWrite("config/profile", { ...state.profile }); }
+
+  // ---------- IA (assinatura do Claude) ----------
+  function context() {
+    const p = P(), pl = plan(), t = today(), entries = state.log[t] || [], tot = sumDay(entries), target = pl?.get(t)?.target;
+    const last7 = [];
+    for (let i = 7; i >= 1; i--) { const k = addDays(t, -i); if (state.log[k]?.length) last7.push(`${k}: ${fmt(sumDay(state.log[k]).kcal)} kcal (limite ${fmt(pl?.get(k)?.target || 0)})`); }
+    return [
+      `Data e hora agora: ${new Date().toLocaleString("pt-BR")}`,
+      complete(p) ? `Perfil: ${p.sex === "f" ? "mulher" : "homem"}, ${p.age} anos, ${p.height} cm, ${p.weight} kg, meta ${p.goal || "?"} kg, gasto estimado ${fmt(tdee(p))} kcal/dia.` : "",
+      p.prefs ? `Preferências e restrições: ${p.prefs}` : "",
+      target ? `Limite de hoje: ${fmt(target)} kcal. Consumido: ${fmt(tot.kcal)} kcal (P ${fmt(tot.protein)} g, C ${fmt(tot.carbs)} g, G ${fmt(tot.fat)} g). Restam ${fmt(target - tot.kcal)} kcal.` : "",
+      entries.length ? `Comido hoje: ${entries.map((e) => `${MEALS[e.meal]}: ${e.name} (${e.qty}, ${fmt(e.kcal)} kcal)`).join("; ")}` : "Nada registrado hoje ainda.",
+      last7.length ? `Últimos dias: ${last7.join("; ")}` : "",
+      pl ? `Limites dos próximos dias: ${[1, 2, 3].map((i) => `${addDays(t, i)}: ${fmt(pl.get(addDays(t, i)).target)} kcal`).join("; ")}` : "",
+    ].filter(Boolean).join("\n");
+  }
+
+  const FOOD_RULES = `Você é um nutricionista brasileiro registrando o que a pessoa comeu.
+Transforme a descrição (texto ditado, possivelmente informal) e/ou a foto em itens de alimento com estimativas realistas de calorias e macronutrientes.
+- Use porções típicas brasileiras quando a quantidade não for dita (ex.: 1 pão francês ≈ 50 g).
+- ARROZ E FEIJÃO (qualquer tipo, cozidos): "quantidade" SEMPRE em conchas e gramas, no formato "1½ concha (150 g)". 1 concha média = 100 g. Se a pessoa falar em colheres, converta (1 colher de servir ≈ 45 g ≈ ½ concha); se não disser quanto, use 1 concha (100 g). kcal por 100 g: arroz branco 128, arroz integral 124, feijão carioca com caldo 76, feijão preto com caldo 77; feijão tropeiro/feijoada calcule pelo preparo.
+- Considere o modo de preparo (fritura, óleo, açúcar, molhos) quando mencionado ou provável.
+- Classifique cada item em uma refeição: cafe, almoco, lanche, jantar ou ceia. Se a pessoa não disser, deduza pelo horário atual.
+- "quantidade" curta e legível (ex.: "1 concha (100 g)", "1 filé médio (120 g)").
+- "comentario": 1 ou 2 frases curtas e encorajadoras, considerando quanto resta de calorias hoje, com uma dica prática se fizer sentido. Sem julgamentos.
+- Se a mensagem não descrever comida, devolva "itens": [] e explique no "comentario".
+Responda SOMENTE com um objeto JSON neste formato:
+{"itens":[{"refeicao":"almoco","nome":"Arroz branco","quantidade":"1 concha (100 g)","kcal":128,"proteina_g":2.5,"carbo_g":28,"gordura_g":0.2}],"comentario":"..."}`;
+
+  const COACH_RULES = (min) => `Você é um nutricionista brasileiro, prático e encorajador, ajudando a pessoa a emagrecer com um déficit calórico sustentável.
+Responda em português do Brasil, curto e direto (no máximo 12 linhas), usando listas com "- " e **negrito** para destacar.
+Sugira comidas comuns no Brasil, fáceis de achar, com calorias aproximadas. Priorize proteína, fibras e saciedade. Para arroz e feijão, use conchas e gramas (1 concha = 100 g).
+Respeite o limite restante e as restrições informadas. Nunca recomende ficar abaixo de ${min} kcal no dia nem jejuns extremos.
+Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procurar um profissional.`;
+
+  function errText(e) {
+    switch (e?.code) {
+      case "not_granted": return "Para usar a IA, permita que este app use o Claude quando ele perguntar.";
+      case "sampling_disabled": return "O Claude não está disponível nesta conta.";
+      case "rate_limited": return "Muitos pedidos seguidos ou limite de uso atingido. Tente daqui a pouco.";
+      case "session_expired": return "Sua sessão expirou. Entre de novo no Claude.";
+      case "image_rejected": return "Não consegui usar essa foto. Tente outra.";
+      case "invalid_json": return "Não entendi a resposta da IA. Toque em Registrar de novo.";
+      case "refused": return "A IA não pôde responder a esse pedido.";
+      case "cancelled": return "";
+      default: return "A IA não respondeu agora. Tente de novo em instantes.";
+    }
+  }
+  function renderAi(text) {
+    $("#aiOut").innerHTML = esc(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^#+\s*(.+)$/gm, "<strong>$1</strong>").replace(/^- /gm, "• ");
+  }
+  function busy(btn, on, label) {
+    if (on) { btn.dataset.label = btn.innerHTML; btn.innerHTML = `<span class="spinner"></span> ${label || ""}`; btn.disabled = true; }
+    else { btn.innerHTML = btn.dataset.label; btn.disabled = false; }
+  }
+
+  async function logFood() {
+    const text = $("#foodInput").value.trim();
+    if (!text && !photo) { toast("Escreva ou dite o que você comeu."); return; }
+    if (!sample) { toast("A IA só funciona com o app aberto pelo Claude."); return; }
+    const btn = $("#logBtn");
+    busy(btn, true, "Analisando…");
+    try {
+      const opts = { cache: false };
+      if (photo) opts.images = [photo.blob];
+      const prompt = `${FOOD_RULES}\n\n--- Situação atual ---\n${context()}\n\n--- O que comi ---\n${text || "(veja a foto do prato)"}`;
+      const data = await sample.json(prompt, opts);
+      const itens = Array.isArray(data?.itens) ? data.itens : [];
+      if (!itens.length) { renderAi(String(data?.comentario || "Não identifiquei alimentos.")); return; }
+      const t = today(), now = new Date().toTimeString().slice(0, 5);
+      const added = itens.map((i) => ({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), time: now,
+        meal: MEALS[i.refeicao] ? i.refeicao : "lanche", name: String(i.nome || "Alimento"), qty: String(i.quantidade || ""),
+        kcal: Math.round(num(i.kcal)), protein: Math.round(num(i.proteina_g)), carbs: Math.round(num(i.carbo_g)), fat: Math.round(num(i.gordura_g)),
+        said: text,
+      }));
+      (state.log[t] ||= []).push(...added);
+      saveDay(t);
+      $("#foodInput").value = ""; clearPhoto(); render();
+      renderAi(`Registrado: ${added.map((a) => `${a.name}, ${a.qty} (${fmt(a.kcal)} kcal)`).join("; ")}\n\n${String(data.comentario || "")}`);
+      toast(`+${fmt(sumDay(added).kcal)} kcal registradas`);
+    } catch (e) {
+      const m = errText(e); if (m) toast(m);
+    } finally { busy(btn, false); }
+  }
+
+  let coachCtl = null;
+  async function coach(question, btn) {
+    if (!sample) { toast("A IA só funciona com o app aberto pelo Claude."); return; }
+    coachCtl?.abort(); coachCtl = new AbortController();
+    busy(btn, true);
+    $("#aiOut").innerHTML = '<span class="muted"><span class="spinner"></span> Pensando…</span>';
+    try {
+      const prompt = `${COACH_RULES(minKcal(P()))}\n\n--- Situação atual ---\n${context()}\n\n--- Pedido ---\n${question}`;
+      const { text } = await sample(prompt, { cache: false, signal: coachCtl.signal, onText: ({ text }) => renderAi(text) });
+      renderAi(text);
+    } catch (e) {
+      if (e?.text) renderAi(e.text); else $("#aiOut").textContent = "";
+      const m = errText(e); if (m) toast(m);
+    } finally { busy(btn, false); }
+  }
+
+  $("#logBtn").addEventListener("click", logFood);
+  $$("[data-suggest]").forEach((b) => b.addEventListener("click", () => coach(b.dataset.suggest === "proxima"
+    ? "Sugira 3 opções para minha próxima refeição que caibam no que resta de calorias hoje, com calorias aproximadas de cada uma."
+    : "Analise meu dia e minha semana: o que estou fazendo bem, o que melhorar, e uma meta simples para amanhã.", b)));
+  $("#askBtn").addEventListener("click", () => { const q = $("#askInput").value.trim(); if (!q) return; $("#askInput").value = ""; coach(q, $("#askBtn")); });
+  $("#askInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#askBtn").click(); });
+
+  // ---------- Foto ----------
+  $("#photoBtn").addEventListener("click", () => $("#photoInput").click());
+  $("#photoInput").addEventListener("change", (ev) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!file) return;
+    clearPhoto();
+    photo = { blob: file, url: URL.createObjectURL(file) };
+    const box = $("#photoPreview");
+    box.innerHTML = `<img src="${photo.url}" alt="Foto do prato"><button class="del" type="button" id="rmPhoto">Remover foto</button>`;
+    box.hidden = false;
+    $("#rmPhoto").addEventListener("click", clearPhoto);
+  });
+  function clearPhoto() { if (photo) URL.revokeObjectURL(photo.url); photo = null; $("#photoPreview").hidden = true; $("#photoPreview").innerHTML = ""; }
+
+  // ---------- Peso ----------
+  $("#weightBtn").addEventListener("click", () => {
+    const v = num($("#weightInput").value);
+    if (!(v > 20 && v < 400)) { toast("Digite um peso válido, por exemplo 82,5."); return; }
+    state.weights[today()] = v; state.profile.weight = String(v);
+    saveDay(today()); saveProfile(); fillProfile();
+    $("#weightInput").value = ""; render(); toast("Peso salvo.");
+  });
+
+  // ---------- Planilha ----------
+  function rows() {
+    const pl = plan(), entries = [], daily = [];
+    const days = [...new Set([...Object.keys(state.log), ...Object.keys(state.weights)])].sort();
+    for (const k of days) {
+      const list = state.log[k] || [];
+      for (const e of list) entries.push({ Data: k, Hora: e.time, Refeição: MEALS[e.meal] || e.meal, Alimento: e.name, Quantidade: e.qty,
+        Kcal: e.kcal, "Proteína (g)": e.protein, "Carbo (g)": e.carbs, "Gordura (g)": e.fat, "O que foi dito": e.said || "" });
+      const s = sumDay(list), t = pl?.get(k)?.target || "";
+      daily.push({ Data: k, "Consumido (kcal)": s.kcal, "Limite (kcal)": t, "Saldo (kcal)": t && list.length ? t - s.kcal : "",
+        "Proteína (g)": s.protein, "Carbo (g)": s.carbs, "Gordura (g)": s.fat, "Peso (kg)": state.weights[k] ?? "" });
+    }
+    return { entries, daily };
+  }
+  async function offer(filename, data) {
+    if (!downloads) { toast("Download indisponível aqui."); return; }
+    try { await downloads.save({ filename, data }); }
+    catch (e) { if (e?.code !== "declined") toast("Não consegui gerar o arquivo agora."); }
+  }
+  $("#xlsxBtn").addEventListener("click", () => {
+    const { entries, daily } = rows();
+    if (!entries.length) { toast("Ainda não há registros para exportar."); return; }
+    if (!window.XLSX) { toast("Excel indisponível agora. Use o CSV."); return; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(daily), "Resumo diário");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(entries), "Registros");
+    offer(`dieta-${today()}.xlsx`, new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" })));
+  });
+  $("#csvBtn").addEventListener("click", () => {
+    const { entries } = rows();
+    if (!entries.length) { toast("Ainda não há registros para exportar."); return; }
+    const cols = Object.keys(entries[0]), q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    offer(`dieta-${today()}.csv`, "﻿" + [cols.map(q).join(";"), ...entries.map((r) => cols.map((c) => q(r[c])).join(";"))].join("\n"));
+  });
+
+  // ---------- Perfil ----------
+  const fields = { pSex: "sex", pAge: "age", pHeight: "height", pWeight: "weight", pGoal: "goal", pRate: "rate", pAct: "activity", pPrefs: "prefs", pManual: "manualTarget" };
+  function fillProfile() { for (const [id, k] of Object.entries(fields)) $("#" + id).value = state.profile[k] ?? ""; calcInfo(); }
+  function readProfile() { const out = {}; for (const [id, k] of Object.entries(fields)) out[k] = $("#" + id).value.trim(); return out; }
+  function calcInfo() {
+    const p0 = readProfile(), p = { ...p0, age: num(p0.age), height: num(p0.height), weight: num(p0.weight), goal: num(p0.goal),
+      rate: num(p0.rate), activity: num(p0.activity), manualTarget: num(p0.manualTarget) };
+    const el = $("#calcInfo");
+    if (!complete(p) && !(p.manualTarget > 0)) { el.hidden = true; return; }
+    const parts = [];
+    if (complete(p)) parts.push(`Gasto estimado: <b>${fmt(tdee(p))} kcal/dia</b>`);
+    parts.push(`Sua meta: <b>${fmt(baseTarget(p))} kcal/dia</b>`);
+    if (p.goal && p.weight > p.goal) parts.push(`Meta de peso em cerca de ${weeksToGoal(p)} semanas`);
+    el.innerHTML = parts.join("<br>"); el.hidden = false;
+  }
+  Object.keys(fields).forEach((id) => $("#" + id).addEventListener("input", calcInfo));
+  $("#profileForm").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    state.profile = readProfile();
+    const w = num(state.profile.weight);
+    if (w > 0 && !Object.keys(state.weights).length) { state.weights[today()] = w; saveDay(today()); }
+    saveProfile(); toast("Perfil salvo."); go("hoje");
+  });
+
+  // ---------- Início ----------
+  fillProfile();
+  render();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+
+  (async () => {
+    if (!window.claude?.use) { status("Abra este app pelo Claude (claude.ai ou app do Claude) para salvar e usar a IA."); state.loaded = true; render(); return; }
+    const use = (n) => window.claude.use(n).catch(() => null);
+    const [dbNs, sampleNs, dlNs, userNs] = await Promise.all([use("db"), use("sample"), use("downloads"), use("user")]);
+    db = dbNs; sample = sampleNs; downloads = dlNs;
+    if (sample) {
+      const lim = await sample.limits().catch(() => null);
+      if (lim?.images) { $("#photoBtn").hidden = false; $("#photoInput").accept = lim.images.mediaTypes.join(","); }
+    } else status("A IA não está disponível aqui. Abra pelo app do Claude com sua conta.");
+    const owner = userNs ? await userNs.isOwner() : false;
+    if (!db || !owner) {
+      state.loaded = true; render();
+      if (!owner && userNs) status("Este app é pessoal: só o dono vê e registra os dados.");
+      else if (!db) status("Não consegui acessar seus dados. Entre na sua conta do Claude.");
+      return;
+    }
+    let gotDays = false, gotProfile = false;
+    const timer = setTimeout(() => status("Seus dados ainda não carregaram. Verifique a internet."), 10000);
+    const done = () => { if (gotDays && gotProfile) { clearTimeout(timer); status(""); state.loaded = true; render(); } };
+    db.collection("days").onSnapshot((snap) => {
+      const log = {}, weights = {};
+      for (const d of snap.docs) {
+        const v = d.data() || {};
+        if (Array.isArray(v.entries) && v.entries.length) log[d.id] = v.entries;
+        if (typeof v.weight === "number") weights[d.id] = v.weight;
+      }
+      state.log = log; state.weights = weights;
+      if (!snap.metadata.fromCache) gotDays = true;
+      done(); render();
+    }, () => { clearTimeout(timer); status("Não consegui carregar seus registros."); state.loaded = true; render(); });
+    db.doc("config/profile").onSnapshot((snap) => {
+      if (snap.exists) {
+        const editing = !$("#view-perfil").hidden && document.activeElement?.closest?.("#profileForm");
+        state.profile = { ...state.profile, ...snap.data() };
+        if (!editing) fillProfile();
+      }
+      if (!snap.metadata.fromCache) gotProfile = true;
+      done(); render();
+    }, () => { gotProfile = true; done(); });
+  })();
+})();
+</script>
