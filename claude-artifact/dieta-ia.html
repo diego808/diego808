@@ -535,17 +535,22 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
   }
   // Guarda os últimos erros da IA (só você vê) para facilitar o diagnóstico.
   let errLog = [];
-  function reportError(where, e) {
+  let errLoaded = false;
+  async function loadErrors() {
+    if (errLoaded || !db) return; errLoaded = true;
+    try { const d = await db.doc("config/errors").get(); if (d.exists && Array.isArray(d.data().items)) errLog = [...errLog, ...d.data().items].slice(0, 10); } catch {}
+  }
+  function reportError(where, e, extra = {}) {
     const item = { at: new Date().toISOString(), where, code: String(e?.code || "sem_codigo"),
-      message: String(e?.message || e || "").slice(0, 500), ua: navigator.userAgent.slice(0, 200) };
+      message: String(e?.message || e || "").slice(0, 500), ua: navigator.userAgent.slice(0, 200), ...extra };
     console.warn("Dieta IA:", item);
     errLog = [item, ...errLog].slice(0, 10);
-    if (db) db.doc("config/errors").set({ items: errLog }).catch(() => {});
+    if (db) loadErrors().then(() => { errLog = [item, ...errLog.filter((x) => x !== item)].slice(0, 10); return db.doc("config/errors").set({ items: errLog }); }).catch(() => {});
     return item.code;
   }
-  function errMsg(where, e) {
+  function errMsg(where, e, extra) {
     if (e?.code === "cancelled") return "";
-    const code = reportError(where, e);
+    const code = reportError(where, e, extra);
     return `${errText(e)} (código: ${code})`;
   }
   // Pede JSON usando a chamada comum (funciona em mais versões do app) e lê a resposta com tolerância.
@@ -590,7 +595,8 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
       renderAi(`Registrado: ${added.map((a) => `${a.name}, ${a.qty} (${fmt(a.kcal)} kcal)`).join("; ")}\n\n${String(data.comentario || "")}`);
       toast(`+${fmt(sumDay(added).kcal)} kcal registradas`);
     } catch (e) {
-      const m = errMsg("registrar", e); if (m) { toast(m); renderAi(m); }
+      const m = errMsg("registrar", e, { comFoto: !!photo, fotoKB: photo ? Math.round(photo.blob.size / 1024) : 0, textoLen: text.length });
+      if (m) { toast(m); renderAi(m); }
     } finally { busy(btn, false); }
   }
 
@@ -620,11 +626,24 @@ Se a pergunta envolver saúde (doenças, remédios, sintomas), recomende procura
 
   // ---------- Foto ----------
   $("#photoBtn").addEventListener("click", () => $("#photoInput").click());
-  $("#photoInput").addEventListener("change", (ev) => {
-    const file = ev.target.files?.[0];
+  // Reduz a foto (máx. 1024 px, JPEG) antes de enviar: fotos da câmera têm vários MB e podem derrubar a conexão.
+  async function shrinkPhoto(file) {
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.8));
+      return blob && blob.size < file.size ? blob : file;
+    } catch { return file; }
+  }
+  $("#photoInput").addEventListener("change", async (ev) => {
+    const original = ev.target.files?.[0];
     ev.target.value = "";
-    if (!file) return;
+    if (!original) return;
     clearPhoto();
+    const file = await shrinkPhoto(original);
     photo = { blob: file, url: URL.createObjectURL(file) };
     const box = $("#photoPreview");
     box.innerHTML = `<img src="${photo.url}" alt="Foto do prato"><button class="del" type="button" id="rmPhoto">Remover foto</button>`;
